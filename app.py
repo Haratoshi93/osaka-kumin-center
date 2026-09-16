@@ -42,6 +42,17 @@ FACILITIES = {
 }
 
 st.set_page_config(page_title="大阪市区民センター 空き状況", page_icon="🏢", layout="wide")
+
+# Streamlit特有の英語メニューやフッターを非表示にする（日本語化の代わり）
+hide_st_style = """
+            <style>
+            #MainMenu {visibility: hidden;}
+            header {visibility: hidden;}
+            footer {visibility: hidden;}
+            </style>
+            """
+st.markdown(hide_st_style, unsafe_allow_html=True)
+
 st.title("🏢 大阪市区民センター 空き状況確認")
 
 st.markdown("""
