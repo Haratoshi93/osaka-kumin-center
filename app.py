@@ -45,8 +45,7 @@ st.set_page_config(page_title="大阪市区民センター 空き状況", page_i
 st.title("🏢 大阪市区民センター 空き状況確認")
 
 st.markdown("""
-大阪市の区役所附設会館（区民センターなど）の会議室の空き状況をリアルタイムで確認できます。
-左のサイドバーから施設を選んでください。
+大阪市の区役所附設会館（区民センターなど）の会議室の空き状況をリアルタイムで確認できます。左のサイドバーから施設を選んでください。
 """)
 
 # サイドバー
@@ -58,49 +57,58 @@ selected_code = [k for k, v in FACILITIES.items() if v == selected_name][0]
 
 @st.cache_data(ttl=600)
 def fetch_availability(scd):
-    url = f"https://www.shisetsu-osaka.jp/shisetsu-nw/akijokyo.html?scd={scd}"
     try:
-        # SSL検証をスキップ
-        response = requests.get(url, verify=False, headers={'User-Agent': 'Mozilla/5.0'})
-        response.raise_for_status()
-        soup = BeautifulSoup(response.content, 'html.parser')
+        s = requests.Session()
+        s.headers.update({'User-Agent': 'Mozilla/5.0'})
         
-        table = soup.find('table', class_='tbl-akijokyo')
-        if not table:
-            return None, "空き状況の表が見つかりませんでした。"
+        # 1. ページにアクセスしてCSRFトークンを取得
+        url_get = f"https://www.shisetsu-osaka.jp/shisetsu-nw/akijokyo.html?scd={scd}"
+        resp_get = s.get(url_get, verify=False)
+        resp_get.raise_for_status()
+        
+        soup = BeautifulSoup(resp_get.content, 'html.parser')
+        form = soup.find('form', id='dForm')
+        if not form:
+            return None, "トークンが見つかりませんでした。"
             
-        # ヘッダー取得（日付）
-        headers = []
-        thead = table.find('thead')
-        date_rows = thead.find_all('tr')[0].find_all('th')
-        for th in date_rows[1:]: # 最初の「部屋/時間帯」をスキップ
-            headers.append(th.text.strip())
+        csrf = form.find('input', {'name': '_csrf'}).get('value')
+        
+        # 2. REST APIにPOSTしてデータを取得
+        url_post = "https://www.shisetsu-osaka.jp/shisetsu-nw/restapi/akijokyo.html"
+        post_data = {
+            '_csrf': csrf,
+            'scd': scd,
+            'sdate': ''
+        }
+        resp_post = s.post(url_post, data=post_data, verify=False)
+        resp_post.raise_for_status()
+        
+        result = resp_post.json()
+        if 'data' not in result or 'akijokyo' not in result['data']:
+            return None, "空き状況データが取得できませんでした。"
             
+        headers_info = result['data'].get('header', [])
+        headers = [h['value'] for h in headers_info]
+        
         data = []
-        tbody = table.find('tbody')
-        if not tbody:
-             return None, "データが見つかりませんでした。"
-             
-        for tr in tbody.find_all('tr'):
-            th = tr.find('th')
-            if not th: continue
-            
-            # 部屋名
-            room_name_span = th.find('span')
-            room_name = room_name_span.text.strip() if room_name_span else "不明"
-            
-            # 状況（午前、午後、夜間 が各日付に対してある）
-            tds = tr.find_all('td', class_='aday')
-            
+        for room in result['data']['akijokyo']:
+            room_name = room.get('roomName', room.get('roomDispName', '不明'))
             row = {'部屋名': room_name}
-            for i, date_header in enumerate(headers):
-                # 1日につき3スロット（午前、午後、夜間）
-                if i*3 + 2 < len(tds):
-                    am = tds[i*3].get('data-obj', '-')
-                    pm = tds[i*3+1].get('data-obj', '-')
-                    night = tds[i*3+2].get('data-obj', '-')
-                    row[date_header] = f"【午前】{am} 【午後】{pm} 【夜間】{night}"
             
+            for i, date_info in enumerate(room.get('dateList', [])):
+                if i < len(headers):
+                    date_header = headers[i]
+                    am = "-"
+                    pm = "-"
+                    night = "-"
+                    
+                    time_list = date_info.get('availTimeList', [])
+                    if len(time_list) >= 1: am = time_list[0].get('statusDisp', '-')
+                    if len(time_list) >= 2: pm = time_list[1].get('statusDisp', '-')
+                    if len(time_list) >= 3: night = time_list[2].get('statusDisp', '-')
+                    
+                    row[date_header] = f"【午前】{am} 【午後】{pm} 【夜間】{night}"
+                    
             data.append(row)
             
         df = pd.DataFrame(data)
@@ -120,7 +128,7 @@ if st.sidebar.button("空き状況を確認"):
         if error:
             st.error(error)
         elif df is not None and not df.empty:
-            st.success(f"情報を取得しました！ ({datetime.datetime.now().strftime('%Y/%m/%d %H:%M:%S')} 時点)")
+            st.success(f"情報を取得しました！（{datetime.datetime.now().strftime('%Y/%m/%d %H:%M:%S')} 時点）")
             
             # テーブルの表示を綺麗にする
             st.dataframe(
@@ -129,7 +137,7 @@ if st.sidebar.button("空き状況を確認"):
                 hide_index=True
             )
             
-            st.info("※ 「○」は空きあり、「×」は予約不可・空きなし、「-」は受付期間外などを表します。")
+            st.info("※ 「〇」は空きあり、「×」は予約不可・空きなし、「-」は受付期間外などを表します。")
             st.markdown(f"[大阪市施設予約システムへ移動して予約する](https://www.shisetsu-osaka.jp/shisetsu-nw/akijokyo.html?scd={selected_code})")
             
         else:
