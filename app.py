@@ -50,6 +50,18 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
+# Streamlitの不要なロゴ等を非表示にするためのCSS
+hide_streamlit_style = """
+            <style>
+            #MainMenu {visibility: hidden;}
+            footer {visibility: hidden;}
+            header {visibility: hidden;}
+            .viewerBadge_container__1QSob {visibility: hidden;}
+            a[href*="streamlit"] { display: none !important; }
+            </style>
+            """
+st.markdown(hide_streamlit_style, unsafe_allow_html=True)
+
 # --- カスタムCSS ---
 custom_css = """
 <style>
