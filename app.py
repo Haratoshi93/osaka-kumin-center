@@ -53,7 +53,7 @@ st.set_page_config(
 custom_css = """
 <style>
     /* 不要なStreamlitのUIを非表示 */
-    #MainMenu, header, footer, [data-testid="collapsedControl"] {visibility: hidden;}
+    #MainMenu, [data-testid="stHeader"], footer, [data-testid="collapsedControl"] {visibility: hidden;}
     
     /* 全体フォント */
     html, body, [class*="css"] {
@@ -497,18 +497,18 @@ if search_clicked:
             elif html_table:
                 now_str = datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S")
                 
-                result_html = f'''
-                <div class="result-panel">
-                    <div class="result-header">
-                        <div class="result-title">検索結果</div>
-                        <div class="result-timestamp">最終更新：{now_str}</div>
-                    </div>
-                    {html_table}
-                    <div class="link-section">
-                        <span class="link-label">予約システムを開く：</span>
-                '''
+                # インデントをなくしてMarkdownのコードブロック扱いになるのを防ぐ
+                result_html = f'''<div class="result-panel">
+<div class="result-header">
+<div class="result-title">検索結果</div>
+<div class="result-timestamp">最終更新：{now_str}</div>
+</div>
+{html_table}
+<div class="link-section">
+<span class="link-label">予約システムを開く：</span>
+'''
                 for code, name in zip(selected_codes, selected_names):
-                    result_html += f'<a href="https://www.shisetsu-osaka.jp/shisetsu-nw/akijokyo.html?scd={code}" target="_blank" class="booking-btn">{name}</a>'
+                    result_html += f'<a href="https://www.shisetsu-osaka.jp/shisetsu-nw/akijokyo.html?scd={code}" target="_blank" class="booking-btn">{name}</a>\n'
                 result_html += '</div></div>'
                 
                 st.markdown(result_html, unsafe_allow_html=True)
