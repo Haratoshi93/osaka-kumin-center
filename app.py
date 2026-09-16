@@ -312,12 +312,12 @@ with col_date:
     target_date = st.date_input("📅 検索日", value=today)
 
 with col_cap:
-    # モバイルで入力しにくいnumber_inputをselectboxに変更（ネイティブのピッカーが起動する）
-    capacity_options = [0, 10, 20, 30, 40, 50, 100]
-    min_capacity = st.selectbox(
+    min_capacity = st.number_input(
         "👥 最低利用人数", 
-        options=capacity_options, 
-        format_func=lambda x: "指定なし" if x == 0 else f"{x}名以上"
+        min_value=0, 
+        value=0, 
+        step=1, 
+        help="0の場合は全て表示"
     )
 
 st.write("") # 少し余白
