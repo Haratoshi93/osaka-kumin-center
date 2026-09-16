@@ -9,33 +9,33 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 FACILITIES = {
     '01': '大阪市立北区民センター',
     '02': '大阪市立大淀コミュニティセンター',
-    '03': 'まるよし精肉店 都島区民センター',
-    '04': 'NORBDENCE福島区民センター',
+    '03': '都島区民センター',
+    '04': '福島区民センター',
     '05': '大阪市立此花区民ホール',
     '06': 'J:COM中央区民センター',
     '07': '大阪市立中央会館',
-    '08': '株式会社ノーブデンス西区民センター',
+    '08': '西区民センター',
     '10': '大阪市立港近隣センター',
-    '11': '藤井組 大正会館',
+    '11': '大正会館',
     '12': '大阪市立天王寺区民センター',
     '13': '大阪市立浪速区民センター',
-    '14': '近藤技研工業 西淀川区民ホール',
+    '14': '西淀川区民ホール',
     '15': '大阪市立西淀川区民会館',
     '16': '大阪市立淀川区民センター',
     '17': '大阪市立東淀川区民会館',
     '18': '大阪市立東成区民センター',
     '19': '大阪市立生野区民センター',
-    '20': '日タク旭区民センター',
+    '20': '旭区民センター',
     '22': '大阪市立鶴見区民センター',
     '23': '大阪市立阿倍野区民センター',
     '24': '大阪市立住之江会館',
-    '25': '錦秀会住吉区民センター',
+    '25': '住吉区民センター',
     '26': '大阪市立東住吉会館',
     '27': '大阪市立平野区民センター',
     '28': '大阪市立平野区民ホール',
     '29': '大阪市立西成区民センター',
     '30': '大阪市立城東区民センター',
-    '31': '藤井組 大正区民ホール',
+    '31': '大正区民ホール',
     '32': '大阪市立東淀川区民ホール',
     '33': '大阪市立すみのえ舞昆ホール',
     '34': '大阪市立東住吉区民ホール',
@@ -43,182 +43,332 @@ FACILITIES = {
 }
 
 # --- ページ設定 ---
-st.set_page_config(page_title="大阪市区民センター 空き状況確認", layout="wide")
+st.set_page_config(
+    page_title="大阪市区民センター 空き状況確認",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
 
-# --- カスタムCSS（デザインの大幅改善） ---
+# --- カスタムCSS ---
 custom_css = """
 <style>
-    /* Streamlitデフォルトの不要なUIを隠す */
-    #MainMenu {visibility: hidden;}
-    header {visibility: hidden;}
-    footer {visibility: hidden;}
+    /* 不要なStreamlitのUIを非表示 */
+    #MainMenu, header, footer, [data-testid="collapsedControl"] {visibility: hidden;}
     
-    /* 全体のフォントと背景色 */
+    /* 全体フォント */
     html, body, [class*="css"] {
-        font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif;
+        font-family: 'Helvetica Neue', 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif;
+        background-color: #f5f7fa;
     }
     
-    /* メインタイトルの装飾 */
-    .main-title {
-        font-size: 28px;
+    /* ページ最大幅を制限して中央寄せ */
+    .block-container {
+        max-width: 1400px;
+        padding: 2rem 2rem 5rem 2rem;
+    }
+    
+    /* ページヘッダー */
+    .page-header {
+        text-align: center;
+        padding: 40px 0 30px 0;
+    }
+    .page-header h1 {
+        font-size: 30px;
         font-weight: 700;
-        color: #2c3e50;
-        margin-bottom: 10px;
-        padding-bottom: 15px;
-        border-bottom: 2px solid #3498db;
+        color: #1a202c;
+        letter-spacing: -0.5px;
+        margin-bottom: 8px;
     }
-    
-    .sub-description {
+    .page-header p {
         font-size: 14px;
-        color: #7f8c8d;
-        margin-bottom: 30px;
+        color: #718096;
     }
     
-    /* カスタムテーブルのデザイン */
-    .table-wrapper {
+    /* 検索パネル */
+    .search-panel {
+        background: white;
+        border-radius: 16px;
+        padding: 28px 32px;
+        margin-bottom: 28px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.04);
+    }
+    .search-panel-title {
+        font-size: 13px;
+        font-weight: 700;
+        color: #a0aec0;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        margin-bottom: 18px;
+    }
+    
+    /* 検索ボタンのカスタム */
+    div.stButton > button {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        border-radius: 10px;
+        padding: 14px 32px;
+        font-size: 15px;
+        font-weight: 600;
+        width: 100%;
+        cursor: pointer;
+        letter-spacing: 0.3px;
+        transition: all 0.2s ease;
+        box-shadow: 0 4px 15px rgba(102,126,234,0.4);
+    }
+    div.stButton > button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 20px rgba(102,126,234,0.5);
+    }
+    
+    /* テーブルラッパー */
+    .result-panel {
+        background: white;
+        border-radius: 16px;
+        padding: 24px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.04);
         overflow-x: auto;
-        margin-top: 20px;
-        border-radius: 8px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-        background: #ffffff;
     }
     
-    table.custom-table {
+    .result-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+    }
+    .result-title {
+        font-size: 16px;
+        font-weight: 700;
+        color: #2d3748;
+    }
+    .result-timestamp {
+        font-size: 12px;
+        color: #a0aec0;
+    }
+    
+    /* テーブル本体 */
+    table.vc-table {
         width: 100%;
         border-collapse: collapse;
-        text-align: center;
-        background-color: white;
-    }
-    
-    table.custom-table th {
-        background-color: #f8f9fa;
-        color: #34495e;
-        font-size: 13px;
-        font-weight: 600;
-        padding: 15px 10px;
-        border-bottom: 2px solid #e9ecef;
-        border-right: 1px solid #e9ecef;
         white-space: nowrap;
     }
-    
-    table.custom-table td {
-        padding: 12px 10px;
-        border-bottom: 1px solid #e9ecef;
-        border-right: 1px solid #e9ecef;
-        vertical-align: top;
+    table.vc-table th {
+        background: #f7fafc;
+        font-size: 12px;
+        font-weight: 700;
+        color: #4a5568;
+        padding: 14px 16px;
+        border-bottom: 2px solid #edf2f7;
+        text-align: center;
     }
-    
-    table.custom-table tr:last-child td {
+    table.vc-table th.room-header {
+        text-align: left;
+        min-width: 200px;
+        border-right: 2px solid #edf2f7;
+        background: #f0f4f8;
+    }
+    /* 日付ヘッダー：土曜・日曜の色分け */
+    table.vc-table th.sat {
+        color: #3182ce;
+        background: #ebf8ff;
+    }
+    table.vc-table th.sun, table.vc-table th.hol {
+        color: #e53e3e;
+        background: #fff5f5;
+    }
+    table.vc-table td {
+        padding: 12px 10px;
+        border-bottom: 1px solid #f0f4f8;
+        vertical-align: middle;
+        text-align: center;
+        min-width: 90px;
+    }
+    table.vc-table td.room-cell {
+        text-align: left;
+        border-right: 2px solid #edf2f7;
+        padding-left: 16px;
+        background: #fcfdff;
+    }
+    table.vc-table tr:last-child td {
         border-bottom: none;
     }
-    table.custom-table th:last-child, table.custom-table td:last-child {
-        border-right: none;
+    table.vc-table tr:hover td {
+        background: #f7fafc;
+    }
+    table.vc-table tr:hover td.room-cell {
+        background: #edf2f7;
     }
     
-    /* 施設・部屋名のセル */
-    .room-name-cell {
-        text-align: left !important;
+    /* 施設名・部屋名 */
+    .facility-tag {
+        display: inline-block;
+        font-size: 10px;
         font-weight: 600;
-        color: #2c3e50;
-        min-width: 180px;
-        background-color: #fafbfc;
+        background: #ebf4ff;
+        color: #3182ce;
+        padding: 2px 7px;
+        border-radius: 20px;
+        margin-bottom: 5px;
+        letter-spacing: 0.3px;
+    }
+    .room-label {
+        font-size: 13px;
+        font-weight: 700;
+        color: #2d3748;
     }
     
-    .facility-label {
-        font-size: 11px;
-        color: #7f8c8d;
-        display: block;
-        margin-bottom: 4px;
-    }
-    
-    /* タイムスロットのバッジデザイン */
-    .slot-container {
+    /* スロット表示 */
+    .slot-box {
         display: flex;
         flex-direction: column;
-        gap: 6px;
+        gap: 4px;
         align-items: center;
     }
-    
-    .badge {
-        display: inline-block;
-        padding: 4px 8px;
-        border-radius: 6px;
+    .slot-item {
+        display: flex;
+        align-items: center;
+        gap: 5px;
         font-size: 12px;
+    }
+    .slot-time {
+        font-size: 10px;
+        color: #a0aec0;
+        width: 20px;
+        text-align: right;
+    }
+    .slot-icon {
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        font-weight: 700;
+        flex-shrink: 0;
+    }
+    .slot-icon.ok {
+        background: #c6f6d5;
+        color: #276749;
+    }
+    .slot-icon.ng {
+        background: #fed7d7;
+        color: #9b2335;
+    }
+    .slot-icon.na {
+        background: #edf2f7;
+        color: #a0aec0;
+    }
+    
+    /* 予約リンクボタン */
+    .link-section {
+        margin-top: 24px;
+        padding-top: 20px;
+        border-top: 1px solid #edf2f7;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+    }
+    .link-label {
+        font-size: 12px;
+        color: #718096;
         font-weight: 600;
-        width: 60px;
-        text-align: center;
-        letter-spacing: 0.5px;
     }
-    
-    .badge.available {
-        background-color: #e8f5e9;
-        color: #2e7d32;
-        border: 1px solid #a5d6a7;
-    }
-    
-    .badge.unavailable {
-        background-color: #ffebee;
-        color: #c62828;
-        border: 1px solid #ffcdd2;
-    }
-    
-    .badge.disabled {
-        background-color: #f5f5f5;
-        color: #9e9e9e;
-        border: 1px solid #e0e0e0;
-    }
-    
-    /* 外部リンクボタン */
-    .reserve-link {
+    a.booking-btn {
         display: inline-block;
-        margin-top: 30px;
-        padding: 12px 24px;
-        background-color: #3498db;
-        color: white !important;
+        padding: 8px 18px;
+        background: white;
+        border: 1.5px solid #667eea;
+        color: #667eea !important;
         text-decoration: none;
-        border-radius: 6px;
+        border-radius: 8px;
+        font-size: 13px;
         font-weight: 600;
-        transition: background-color 0.2s;
+        transition: all 0.15s;
     }
-    .reserve-link:hover {
-        background-color: #2980b9;
+    a.booking-btn:hover {
+        background: #667eea;
+        color: white !important;
+    }
+    
+    /* 凡例 */
+    .legend {
+        display: flex;
+        gap: 16px;
+        align-items: center;
+        font-size: 12px;
+        color: #718096;
+        margin-top: 16px;
+        padding-top: 16px;
+        border-top: 1px solid #edf2f7;
+    }
+    .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 5px;
     }
 </style>
 """
 st.markdown(custom_css, unsafe_allow_html=True)
 
-# --- ヘッダー ---
-st.markdown('<div class="main-title">大阪市区民センター 空き状況確認</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-description">指定した期間と施設の会議室の空き状況をリアルタイムで一括検索します。左のメニューから条件を指定してください。</div>', unsafe_allow_html=True)
+# --- ページヘッダー ---
+st.markdown("""
+<div class="page-header">
+    <h1>大阪市区民センター 空き状況確認</h1>
+    <p>大阪市内の区民センター・会館の会議室空き状況をまとめて検索できます</p>
+</div>
+""", unsafe_allow_html=True)
 
-# --- サイドバー設定 ---
-st.sidebar.markdown("### 検索条件")
+# --- 検索パネル ---
+st.markdown('<div class="search-panel"><div class="search-panel-title">検索条件</div>', unsafe_allow_html=True)
 
-selected_names = st.sidebar.multiselect(
-    "施設を選択（複数選択可）", 
-    list(FACILITIES.values()),
-    default=[FACILITIES['18']]
-)
+col_fac, col_start, col_end, col_btn = st.columns([4, 1.5, 1.5, 1.2])
+
+with col_fac:
+    selected_names = st.multiselect(
+        "施設を選択（複数可）",
+        list(FACILITIES.values()),
+        default=[FACILITIES['18']],
+        placeholder="施設を選んでください..."
+    )
 
 today = datetime.date.today()
 default_end = today + datetime.timedelta(days=7)
-date_range = st.sidebar.date_input(
-    "対象期間（開始日〜終了日）", 
-    value=(today, default_end)
-)
+
+with col_start:
+    start_date = st.date_input("開始日", value=today)
+
+with col_end:
+    end_date = st.date_input("終了日", value=default_end)
+
+with col_btn:
+    st.write("") # 縦位置合わせ
+    search_clicked = st.button("空き状況を検索", type="primary")
+
+st.markdown('</div>', unsafe_allow_html=True)
 
 NAME_TO_CODE = {v: k for k, v in FACILITIES.items()}
 selected_codes = [NAME_TO_CODE[name] for name in selected_names]
 
-def get_badge_html(time_name, status):
+# --- 曜日判定 ---
+def get_day_class(date_str):
+    """日付文字列（例：2026/9/16(水)）から曜日CSSクラスを返す"""
+    try:
+        d = datetime.datetime.strptime(date_str.split('(')[0], "%Y/%m/%d")
+        wd = d.weekday()
+        if wd == 5: return "sat"
+        if wd == 6: return "sun"
+    except: pass
+    return ""
+
+def get_slot_html(status):
     if status == '〇':
-        css_class = "available"
+        return '<div class="slot-icon ok">○</div>'
     elif status == '×':
-        css_class = "unavailable"
+        return '<div class="slot-icon ng">×</div>'
     else:
-        css_class = "disabled"
-        status = "-"
-    return f'<span class="badge {css_class}">{time_name} {status}</span>'
+        return '<div class="slot-icon na">－</div>'
 
 @st.cache_data(ttl=600)
 def fetch_availability_html(scds, start_date, end_date):
@@ -226,7 +376,6 @@ def fetch_availability_html(scds, start_date, end_date):
         s = requests.Session()
         s.headers.update({'User-Agent': 'Mozilla/5.0'})
         
-        # CSRFトークン取得
         url_get = f"https://www.shisetsu-osaka.jp/shisetsu-nw/akijokyo.html?scd={scds[0]}"
         resp_get = s.get(url_get, verify=False)
         resp_get.raise_for_status()
@@ -237,15 +386,14 @@ def fetch_availability_html(scds, start_date, end_date):
             return None, "システムからセキュリティトークンが取得できませんでした。"
         csrf = form.find('input', {'name': '_csrf'}).get('value')
         
-        current = start_date
-        monday = current - datetime.timedelta(days=current.weekday())
+        monday = start_date - datetime.timedelta(days=start_date.weekday())
         target_mondays = []
         while monday <= end_date:
             target_mondays.append(monday)
             monday += datetime.timedelta(days=7)
             
         all_date_headers = set()
-        room_data_map = {} 
+        room_data_map = {}
         url_post = "https://www.shisetsu-osaka.jp/shisetsu-nw/restapi/akijokyo.html"
         
         for scd in scds:
@@ -270,6 +418,7 @@ def fetch_availability_html(scds, start_date, end_date):
                         room_data_map[dict_key] = {
                             'facility': facility_name,
                             'room': room_name,
+                            'code': scd,
                             'dates': {}
                         }
                     
@@ -289,58 +438,82 @@ def fetch_availability_html(scds, start_date, end_date):
                                 if len(time_list) >= 2: pm = time_list[1].get('statusDisp', '-')
                                 if len(time_list) >= 3: night = time_list[2].get('statusDisp', '-')
                                 
-                                room_data_map[dict_key]['dates'][date_header] = {'am': am, 'pm': pm, 'night': night}
+                                room_data_map[dict_key]['dates'][date_header] = (am, pm, night)
                                 
         if not room_data_map:
-             return None, "条件に一致する空き状況データがありませんでした。"
+             return None, "条件に一致するデータが見つかりませんでした。期間や施設を変えてお試しください。"
              
-        # HTML組み立て
         sorted_dates = sorted(list(all_date_headers), key=lambda x: datetime.datetime.strptime(x.split('(')[0], "%Y/%m/%d"))
         
-        html = '<div class="table-wrapper"><table class="custom-table">'
-        html += '<thead><tr><th>施設・部屋名</th>'
+        # HTML組み立て
+        html = '<table class="vc-table">'
+        html += '<thead><tr><th class="room-header">施設 / 部屋名</th>'
         for d in sorted_dates:
-            html += f'<th>{d}</th>'
+            day_cls = get_day_class(d)
+            html += f'<th class="{day_cls}">{d}</th>'
         html += '</tr></thead><tbody>'
         
         for key, data in room_data_map.items():
             html += '<tr>'
-            html += f'<td class="room-name-cell"><span class="facility-label">{data["facility"]}</span>{data["room"]}</td>'
+            html += f'<td class="room-cell"><span class="facility-tag">{data["facility"]}</span><br><span class="room-label">{data["room"]}</span></td>'
             for d in sorted_dates:
-                slots = data['dates'].get(d, {'am': '-', 'pm': '-', 'night': '-'})
-                html += '<td><div class="slot-container">'
-                html += get_badge_html('午前', slots['am'])
-                html += get_badge_html('午後', slots['pm'])
-                html += get_badge_html('夜間', slots['night'])
-                html += '</div></td>'
+                slots = data['dates'].get(d)
+                if slots:
+                    am, pm, night = slots
+                    html += '<td><div class="slot-box">'
+                    html += f'<div class="slot-item"><span class="slot-time">午前</span>{get_slot_html(am)}</div>'
+                    html += f'<div class="slot-item"><span class="slot-time">午後</span>{get_slot_html(pm)}</div>'
+                    html += f'<div class="slot-item"><span class="slot-time">夜間</span>{get_slot_html(night)}</div>'
+                    html += '</div></td>'
+                else:
+                    html += '<td><div class="slot-icon na" style="margin:auto;">－</div></td>'
             html += '</tr>'
             
-        html += '</tbody></table></div>'
+        html += '</tbody></table>'
+        
+        # 凡例
+        html += '''
+        <div class="legend">
+            <div class="legend-item"><div class="slot-icon ok" style="margin:0;">○</div> 空きあり</div>
+            <div class="legend-item"><div class="slot-icon ng" style="margin:0;">×</div> 予約済み・空きなし</div>
+            <div class="legend-item"><div class="slot-icon na" style="margin:0;">－</div> 受付期間外など</div>
+        </div>
+        '''
+        
         return html, None
         
     except Exception as e:
-        return None, f"エラーが発生しました: {e}"
+        return None, f"データの取得中にエラーが発生しました: {e}"
 
 # --- メイン処理 ---
-if st.sidebar.button("空き状況を検索", type="primary", use_container_width=True):
+if search_clicked:
     if not selected_codes:
         st.warning("施設を1つ以上選択してください。")
-    elif isinstance(date_range, tuple) and len(date_range) != 2:
-        st.warning("対象期間の「終了日」も選択してください。（1日だけの場合は同じ日を2回クリック）")
+    elif start_date > end_date:
+        st.warning("終了日は開始日以降に設定してください。")
     else:
-        start_date = date_range[0] if isinstance(date_range, tuple) else date_range
-        end_date = date_range[1] if isinstance(date_range, tuple) and len(date_range) == 2 else start_date
-        
-        with st.spinner("最新の空き状況を取得しています..."):
-            html_table, error = fetch_availability_html(selected_codes, start_date, end_date)
+        with st.spinner("データを取得・集計しています..."):
+            html_table, error = fetch_availability_html(tuple(selected_codes), start_date, end_date)
             
             if error:
                 st.error(error)
             elif html_table:
-                st.markdown(f'<div style="text-align:right; font-size:12px; color:#95a5a6; margin-bottom:5px;">最終更新: {datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S")}</div>', unsafe_allow_html=True)
-                st.markdown(html_table, unsafe_allow_html=True)
+                now_str = datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S")
                 
-                # 予約サイトへのリンク
-                st.markdown(f'<a href="https://www.shisetsu-osaka.jp/shisetsu-nw/akijokyo.html?scd={selected_codes[0]}" target="_blank" class="reserve-link">大阪市施設予約システムを開く</a>', unsafe_allow_html=True)
+                result_html = f'''
+                <div class="result-panel">
+                    <div class="result-header">
+                        <div class="result-title">検索結果</div>
+                        <div class="result-timestamp">最終更新：{now_str}</div>
+                    </div>
+                    {html_table}
+                    <div class="link-section">
+                        <span class="link-label">予約システムを開く：</span>
+                '''
+                for code, name in zip(selected_codes, selected_names):
+                    result_html += f'<a href="https://www.shisetsu-osaka.jp/shisetsu-nw/akijokyo.html?scd={code}" target="_blank" class="booking-btn">{name}</a>'
+                result_html += '</div></div>'
+                
+                st.markdown(result_html, unsafe_allow_html=True)
             else:
                 st.warning("指定された条件のデータが見つかりませんでした。")
