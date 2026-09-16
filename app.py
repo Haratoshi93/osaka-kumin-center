@@ -202,10 +202,10 @@ selected_names = st.sidebar.multiselect(
 
 today = datetime.date.today()
 default_end = today + datetime.timedelta(days=7)
-date_range = st.sidebar.date_input(
-    "対象期間（開始日〜終了日）", 
-    value=(today, default_end)
-)
+
+col1, col2 = st.sidebar.columns(2)
+start_date = col1.date_input("開始日", value=today)
+end_date = col2.date_input("終了日", value=default_end)
 
 NAME_TO_CODE = {v: k for k, v in FACILITIES.items()}
 selected_codes = [NAME_TO_CODE[name] for name in selected_names]
@@ -325,12 +325,9 @@ def fetch_availability_html(scds, start_date, end_date):
 if st.sidebar.button("空き状況を検索", type="primary", use_container_width=True):
     if not selected_codes:
         st.warning("施設を1つ以上選択してください。")
-    elif isinstance(date_range, tuple) and len(date_range) != 2:
-        st.warning("対象期間の「終了日」も選択してください。（1日だけの場合は同じ日を2回クリック）")
+    elif start_date > end_date:
+        st.warning("終了日は開始日以降の日付を選択してください。")
     else:
-        start_date = date_range[0] if isinstance(date_range, tuple) else date_range
-        end_date = date_range[1] if isinstance(date_range, tuple) and len(date_range) == 2 else start_date
-        
         with st.spinner("最新の空き状況を取得しています..."):
             html_table, error = fetch_availability_html(selected_codes, start_date, end_date)
             
@@ -340,7 +337,12 @@ if st.sidebar.button("空き状況を検索", type="primary", use_container_widt
                 st.markdown(f'<div style="text-align:right; font-size:12px; color:#95a5a6; margin-bottom:5px;">最終更新: {datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S")}</div>', unsafe_allow_html=True)
                 st.markdown(html_table, unsafe_allow_html=True)
                 
-                # 予約サイトへのリンク
-                st.markdown(f'<a href="https://www.shisetsu-osaka.jp/shisetsu-nw/akijokyo.html?scd={selected_codes[0]}" target="_blank" class="reserve-link">大阪市施設予約システムを開く</a>', unsafe_allow_html=True)
+                # 予約サイトへのリンク（選択したすべての施設分を生成）
+                st.markdown('<div style="margin-top: 30px; font-weight: 600; color: #2c3e50;">💡 予約システムを開く</div>', unsafe_allow_html=True)
+                links_html = '<div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px;">'
+                for code, name in zip(selected_codes, selected_names):
+                    links_html += f'<a href="https://www.shisetsu-osaka.jp/shisetsu-nw/akijokyo.html?scd={code}" target="_blank" class="reserve-link" style="margin-top:0;">{name}を開く</a>'
+                links_html += '</div>'
+                st.markdown(links_html, unsafe_allow_html=True)
             else:
                 st.warning("指定された条件のデータが見つかりませんでした。")
