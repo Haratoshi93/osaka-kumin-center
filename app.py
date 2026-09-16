@@ -296,34 +296,35 @@ st.markdown("""
 # --- 検索パネル ---
 st.markdown("### 検索条件")
 
-col_fac, col_date = st.columns([6, 4])
+# モバイルファーストな縦積みベースのレイアウト（余計な空行を排除）
+selected_names = st.multiselect(
+    "🏢 施設を選択（複数可）",
+    list(FACILITIES.values()),
+    default=[FACILITIES['18'], FACILITIES['23']],
+    placeholder="施設を選んでください..."
+)
 
-with col_fac:
-    # デフォルトを東成区民センター(18)と阿倍野区民センター(23)に変更
-    selected_names = st.multiselect(
-        "施設を選択（複数可）",
-        list(FACILITIES.values()),
-        default=[FACILITIES['18'], FACILITIES['23']],
-        placeholder="施設を選んでください..."
-    )
+col_date, col_cap = st.columns(2)
 
 today = datetime.date.today()
 
 with col_date:
-    target_date = st.date_input("検索日", value=today)
-
-col_cap, col_type, col_btn = st.columns([3, 4, 3])
+    target_date = st.date_input("📅 検索日", value=today)
 
 with col_cap:
-    min_capacity = st.number_input("最低利用人数", min_value=0, value=0, step=1, help="この人数以上が定員の部屋のみ表示")
+    # モバイルで入力しにくいnumber_inputをselectboxに変更（ネイティブのピッカーが起動する）
+    capacity_options = [0, 10, 20, 30, 40, 50, 100]
+    min_capacity = st.selectbox(
+        "👥 最低利用人数", 
+        options=capacity_options, 
+        format_func=lambda x: "指定なし" if x == 0 else f"{x}名以上"
+    )
 
-with col_type:
-    st.write("") # 縦位置合わせ
-    show_only_meeting = st.checkbox("集会室・会議室のみ表示", value=True)
+st.write("") # 少し余白
+show_only_meeting = st.toggle("📌 集会室・会議室のみ表示する", value=True)
 
-with col_btn:
-    st.write("") # 縦位置合わせ
-    search_clicked = st.button("空き状況を検索", type="primary", use_container_width=True)
+st.write("") # 少し余白
+search_clicked = st.button("空き状況を検索", type="primary", use_container_width=True)
 
 NAME_TO_CODE = {v: k for k, v in FACILITIES.items()}
 selected_codes = [NAME_TO_CODE[name] for name in selected_names]
