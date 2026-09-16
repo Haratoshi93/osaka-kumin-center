@@ -76,7 +76,8 @@ custom_css = """
         font-size: 24px;
         font-weight: 700;
         letter-spacing: -0.5px;
-        margin-bottom: 4px;
+        margin-bottom: 8px;
+        line-height: 1.3;
     }
     .page-header p {
         font-size: 13px;
@@ -288,7 +289,7 @@ st.markdown(custom_css, unsafe_allow_html=True)
 # --- ページヘッダー ---
 st.markdown("""
 <div class="page-header">
-    <h1>大阪市区民センター 空き状況確認</h1>
+    <h1>大阪市区民センター<br>空き状況確認</h1>
     <p>指定した日付の会議室空き状況を検索します</p>
 </div>
 """, unsafe_allow_html=True)
