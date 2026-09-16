@@ -3,6 +3,7 @@ import requests
 from bs4 import BeautifulSoup
 import datetime
 import urllib3
+import concurrent.futures
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # 施設一覧
@@ -60,25 +61,25 @@ custom_css = """
         font-family: 'Helvetica Neue', 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif;
     }
     
-    /* ページ最大幅を制限して中央寄せ */
+    /* スマホ向けに余白を削減 */
     .block-container {
         max-width: 1400px;
-        padding: 2rem 2rem 5rem 2rem;
+        padding: 1rem 1rem 4rem 1rem;
     }
     
     /* ページヘッダー */
     .page-header {
         text-align: center;
-        padding: 40px 0 30px 0;
+        padding: 20px 0 20px 0;
     }
     .page-header h1 {
-        font-size: 30px;
+        font-size: 24px;
         font-weight: 700;
         letter-spacing: -0.5px;
-        margin-bottom: 8px;
+        margin-bottom: 4px;
     }
     .page-header p {
-        font-size: 14px;
+        font-size: 13px;
         color: #718096;
     }
     
@@ -88,7 +89,7 @@ custom_css = """
         color: white;
         border: none;
         border-radius: 10px;
-        padding: 14px 32px;
+        padding: 12px 24px;
         font-size: 15px;
         font-weight: 600;
         width: 100%;
@@ -104,8 +105,8 @@ custom_css = """
     
     /* テーブルラッパー */
     .result-panel {
-        border-radius: 16px;
-        padding: 24px;
+        border-radius: 12px;
+        padding: 16px;
         box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.04);
         overflow-x: auto;
     }
@@ -114,14 +115,14 @@ custom_css = """
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: 20px;
+        margin-bottom: 16px;
     }
     .result-title {
-        font-size: 16px;
+        font-size: 15px;
         font-weight: 700;
     }
     .result-timestamp {
-        font-size: 12px;
+        font-size: 11px;
         color: #a0aec0;
     }
     
@@ -129,18 +130,18 @@ custom_css = """
     table.vc-table {
         width: 100%;
         border-collapse: collapse;
-        white-space: nowrap;
+        /* スマホで折り返すためにnowrapは解除 */
     }
     table.vc-table th {
         font-size: 12px;
         font-weight: 700;
-        padding: 14px 16px;
+        padding: 12px 10px;
         border-bottom: 2px solid #edf2f7;
         text-align: center;
     }
     table.vc-table th.room-header {
         text-align: left;
-        min-width: 200px;
+        min-width: 120px;
         border-right: 2px solid #edf2f7;
     }
     /* 日付ヘッダー：土曜・日曜の色分け */
@@ -151,25 +152,20 @@ custom_css = """
         color: #e53e3e;
     }
     table.vc-table td {
-        padding: 12px 10px;
+        padding: 12px 8px;
         border-bottom: 1px solid #f0f4f8;
         vertical-align: middle;
         text-align: center;
-        min-width: 90px;
+        min-width: 120px;
     }
     table.vc-table td.room-cell {
         text-align: left;
         border-right: 2px solid #edf2f7;
-        padding-left: 16px;
+        padding-left: 10px;
+        line-height: 1.4;
     }
     table.vc-table tr:last-child td {
         border-bottom: none;
-    }
-    table.vc-table tr:hover td {
-        background: #f7fafc;
-    }
-    table.vc-table tr:hover td.room-cell {
-        background: #edf2f7;
     }
     
     /* 施設名・部屋名 */
@@ -179,9 +175,9 @@ custom_css = """
         font-weight: 600;
         background: #ebf4ff;
         color: #3182ce;
-        padding: 2px 7px;
+        padding: 3px 8px;
         border-radius: 20px;
-        margin-bottom: 5px;
+        margin-bottom: 6px;
         letter-spacing: 0.3px;
     }
     .room-label {
@@ -190,28 +186,26 @@ custom_css = """
         color: #2d3748;
     }
     
-    /* スロット表示 */
+    /* スロット表示（スマホ向けに横並び） */
     .slot-box {
         display: flex;
-        flex-direction: column;
-        gap: 4px;
-        align-items: center;
+        flex-direction: row;
+        justify-content: center;
+        gap: 12px;
     }
     .slot-item {
         display: flex;
+        flex-direction: column;
         align-items: center;
-        gap: 5px;
-        font-size: 12px;
+        gap: 4px;
     }
     .slot-time {
         font-size: 10px;
         color: #a0aec0;
-        width: 20px;
-        text-align: right;
     }
     .slot-icon {
-        width: 22px;
-        height: 22px;
+        width: 24px;
+        height: 24px;
         border-radius: 50%;
         display: flex;
         align-items: center;
@@ -235,12 +229,12 @@ custom_css = """
     
     /* 予約リンクボタン */
     .link-section {
-        margin-top: 24px;
-        padding-top: 20px;
+        margin-top: 20px;
+        padding-top: 16px;
         border-top: 1px solid #edf2f7;
         display: flex;
         flex-wrap: wrap;
-        gap: 10px;
+        gap: 8px;
         align-items: center;
     }
     .link-label {
@@ -250,13 +244,13 @@ custom_css = """
     }
     a.booking-btn {
         display: inline-block;
-        padding: 8px 18px;
+        padding: 6px 14px;
         background: white;
         border: 1.5px solid #667eea;
         color: #667eea !important;
         text-decoration: none;
-        border-radius: 8px;
-        font-size: 13px;
+        border-radius: 6px;
+        font-size: 12px;
         font-weight: 600;
         transition: all 0.15s;
     }
@@ -268,18 +262,19 @@ custom_css = """
     /* 凡例 */
     .legend {
         display: flex;
-        gap: 16px;
+        flex-wrap: wrap;
+        gap: 12px;
         align-items: center;
-        font-size: 12px;
+        font-size: 11px;
         color: #718096;
         margin-top: 16px;
-        padding-top: 16px;
+        padding-top: 12px;
         border-top: 1px solid #edf2f7;
     }
     .legend-item {
         display: flex;
         align-items: center;
-        gap: 5px;
+        gap: 4px;
     }
     
     /* チェックボックス用のパディング調整 */
@@ -294,51 +289,47 @@ st.markdown(custom_css, unsafe_allow_html=True)
 st.markdown("""
 <div class="page-header">
     <h1>大阪市区民センター 空き状況確認</h1>
-    <p>大阪市内の区民センター・会館の会議室空き状況をまとめて検索できます</p>
+    <p>指定した日付の会議室空き状況を検索します</p>
 </div>
 """, unsafe_allow_html=True)
 
 # --- 検索パネル ---
 st.markdown("### 検索条件")
 
-col_fac, col_start, col_end = st.columns([4, 2, 2])
+col_fac, col_date = st.columns([6, 4])
 
 with col_fac:
+    # デフォルトを東成区民センター(18)と阿倍野区民センター(23)に変更
     selected_names = st.multiselect(
         "施設を選択（複数可）",
         list(FACILITIES.values()),
-        default=[FACILITIES['18']],
+        default=[FACILITIES['18'], FACILITIES['23']],
         placeholder="施設を選んでください..."
     )
 
 today = datetime.date.today()
-default_end = today + datetime.timedelta(days=7)
 
-with col_start:
-    start_date = st.date_input("開始日", value=today)
+with col_date:
+    target_date = st.date_input("検索日", value=today)
 
-with col_end:
-    end_date = st.date_input("終了日", value=default_end)
-
-col_cap, col_type, col_btn = st.columns([2, 3, 3])
+col_cap, col_type, col_btn = st.columns([3, 4, 3])
 
 with col_cap:
-    min_capacity = st.number_input("最低利用人数", min_value=0, value=0, step=1, help="この人数以上が定員の部屋のみ表示します（0の場合は全て表示）")
+    min_capacity = st.number_input("最低利用人数", min_value=0, value=0, step=1, help="この人数以上が定員の部屋のみ表示")
 
 with col_type:
     st.write("") # 縦位置合わせ
-    show_only_meeting = st.checkbox("集会室・会議室のみ表示", value=True, help="チェックを入れると「集会」または「会議」という名前が含まれる部屋のみに絞り込みます（ホール等は除外されます）")
+    show_only_meeting = st.checkbox("集会室・会議室のみ表示", value=True)
 
 with col_btn:
     st.write("") # 縦位置合わせ
-    search_clicked = st.button("空き状況を検索", type="primary")
+    search_clicked = st.button("空き状況を検索", type="primary", use_container_width=True)
 
 NAME_TO_CODE = {v: k for k, v in FACILITIES.items()}
 selected_codes = [NAME_TO_CODE[name] for name in selected_names]
 
 # --- 曜日判定 ---
 def get_day_class(date_str):
-    """日付文字列（例：2026/9/16(水)）から曜日CSSクラスを返す"""
     try:
         d = datetime.datetime.strptime(date_str.split('(')[0], "%Y/%m/%d")
         wd = d.weekday()
@@ -355,14 +346,22 @@ def get_slot_html(status):
     else:
         return '<div class="slot-icon na">－</div>'
 
-@st.cache_data(ttl=600)
-def fetch_availability_html(scds, start_date, end_date, min_cap, only_meeting):
+def fetch_single_facility(s, csrf, scd, monday_str, url_post):
+    """並列処理用に1施設・1週間分のデータを取得する関数"""
+    post_data = {'_csrf': csrf, 'scd': scd, 'sdate': monday_str}
+    resp = s.post(url_post, data=post_data, verify=False, timeout=10)
+    resp.raise_for_status()
+    return scd, resp.json()
+
+@st.cache_data(ttl=300)
+def fetch_availability_html_single_day(scds, t_date, min_cap, only_meeting):
     try:
         s = requests.Session()
         s.headers.update({'User-Agent': 'Mozilla/5.0'})
         
+        # セキュリティトークン(CSRF)を取得するために、最初の施設へGET
         url_get = f"https://www.shisetsu-osaka.jp/shisetsu-nw/akijokyo.html?scd={scds[0]}"
-        resp_get = s.get(url_get, verify=False)
+        resp_get = s.get(url_get, verify=False, timeout=10)
         resp_get.raise_for_status()
         
         soup = BeautifulSoup(resp_get.content, 'html.parser')
@@ -371,99 +370,101 @@ def fetch_availability_html(scds, start_date, end_date, min_cap, only_meeting):
             return None, "システムからセキュリティトークンが取得できませんでした。"
         csrf = form.find('input', {'name': '_csrf'}).get('value')
         
-        monday = start_date - datetime.timedelta(days=start_date.weekday())
-        target_mondays = []
-        while monday <= end_date:
-            target_mondays.append(monday)
-            monday += datetime.timedelta(days=7)
-            
-        all_date_headers = set()
-        room_data_map = {}
+        # 該当週の月曜日を計算
+        monday = t_date - datetime.timedelta(days=t_date.weekday())
+        monday_str = monday.strftime("%Y-%m-%d")
+        
         url_post = "https://www.shisetsu-osaka.jp/shisetsu-nw/restapi/akijokyo.html"
         
-        for scd in scds:
-            facility_name = FACILITIES[scd]
-            for monday_date in target_mondays:
-                post_data = {'_csrf': csrf, 'scd': scd, 'sdate': monday_date.strftime("%Y-%m-%d")}
-                resp_post = s.post(url_post, data=post_data, verify=False)
-                resp_post.raise_for_status()
-                result = resp_post.json()
-                
-                if 'data' not in result or 'akijokyo' not in result['data']:
-                    continue
+        room_data_map = {}
+        target_date_header = ""
+        
+        # --- 並列処理で全施設へ同時にPOSTリクエストを送信 (高速化) ---
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+            future_to_scd = {
+                executor.submit(fetch_single_facility, s, csrf, scd, monday_str, url_post): scd 
+                for scd in scds
+            }
+            
+            for future in concurrent.futures.as_completed(future_to_scd):
+                scd = future_to_scd[future]
+                try:
+                    scd_result, result_json = future.result()
                     
-                headers_info = result['data'].get('header', [])
-                headers = [h['value'] for h in headers_info]
-                
-                for room in result['data']['akijokyo']:
-                    room_name = room.get('roomName', room.get('roomDispName', '不明'))
-                    
-                    # --- フィルター処理 ---
-                    if only_meeting:
-                        if "集会" not in room_name and "会議" not in room_name:
-                            continue
-                            
-                    capacity = int(room.get('tenin', 0) or 0)
-                    if min_cap > 0 and capacity < min_cap:
+                    if 'data' not in result_json or 'akijokyo' not in result_json['data']:
                         continue
-                    # ----------------------
+                        
+                    headers_info = result_json['data'].get('header', [])
+                    headers = [h['value'] for h in headers_info]
                     
-                    dict_key = f"{scd}_{room_name}"
+                    facility_name = FACILITIES[scd]
                     
-                    if dict_key not in room_data_map:
-                        room_data_map[dict_key] = {
-                            'facility': facility_name,
-                            'room': room_name,
-                            'capacity': capacity,
-                            'code': scd,
-                            'dates': {}
-                        }
+                    for room in result_json['data']['akijokyo']:
+                        room_name = room.get('roomName', room.get('roomDispName', '不明'))
+                        
+                        # --- フィルター処理 ---
+                        if only_meeting:
+                            if "集会" not in room_name and "会議" not in room_name:
+                                continue
+                                
+                        capacity = int(room.get('tenin', 0) or 0)
+                        if min_cap > 0 and capacity < min_cap:
+                            continue
+                        # ----------------------
+                        
+                        dict_key = f"{scd}_{room_name}"
+                        
+                        for i, date_info in enumerate(room.get('dateList', [])):
+                            if i < len(headers):
+                                raw_date_str = date_info.get('riyoDate')
+                                if not raw_date_str: continue
+                                
+                                cur_dt = datetime.datetime.strptime(raw_date_str, "%Y-%m-%d").date()
+                                
+                                # 指定された単一の日付のみを抽出
+                                if cur_dt == t_date:
+                                    target_date_header = headers[i]
+                                    
+                                    if dict_key not in room_data_map:
+                                        room_data_map[dict_key] = {
+                                            'facility': facility_name,
+                                            'room': room_name,
+                                            'capacity': capacity,
+                                            'code': scd,
+                                            'am': "-", 'pm': "-", 'night': "-"
+                                        }
+                                    
+                                    time_list = date_info.get('availTimeList', [])
+                                    if len(time_list) >= 1: room_data_map[dict_key]['am'] = time_list[0].get('statusDisp', '-')
+                                    if len(time_list) >= 2: room_data_map[dict_key]['pm'] = time_list[1].get('statusDisp', '-')
+                                    if len(time_list) >= 3: room_data_map[dict_key]['night'] = time_list[2].get('statusDisp', '-')
+                                    
+                except Exception as exc:
+                    st.error(f"{FACILITIES[scd]} のデータ取得でエラーが発生しました: {exc}")
                     
-                    for i, date_info in enumerate(room.get('dateList', [])):
-                        if i < len(headers):
-                            raw_date_str = date_info.get('riyoDate')
-                            if not raw_date_str: continue
-                            
-                            cur_dt = datetime.datetime.strptime(raw_date_str, "%Y-%m-%d").date()
-                            if start_date <= cur_dt <= end_date:
-                                date_header = headers[i]
-                                all_date_headers.add(date_header)
-                                
-                                am, pm, night = "-", "-", "-"
-                                time_list = date_info.get('availTimeList', [])
-                                if len(time_list) >= 1: am = time_list[0].get('statusDisp', '-')
-                                if len(time_list) >= 2: pm = time_list[1].get('statusDisp', '-')
-                                if len(time_list) >= 3: night = time_list[2].get('statusDisp', '-')
-                                
-                                room_data_map[dict_key]['dates'][date_header] = (am, pm, night)
-                                
-        if not room_data_map:
-             return None, "条件に一致するデータが見つかりませんでした。人数条件を緩めるか、期間や施設を変えてお試しください。"
+        if not room_data_map or not target_date_header:
+             return None, "条件に一致するデータが見つかりませんでした。"
              
-        sorted_dates = sorted(list(all_date_headers), key=lambda x: datetime.datetime.strptime(x.split('(')[0], "%Y/%m/%d"))
+        # 表示順を施設コード＞部屋名でソート
+        sorted_keys = sorted(room_data_map.keys())
         
-        # HTML組み立て
+        # HTML組み立て (2カラム: 施設/部屋名 | スロット)
+        day_cls = get_day_class(target_date_header)
         html = '<table class="vc-table">'
-        html += '<thead><tr><th class="room-header">施設 / 部屋名</th>'
-        for d in sorted_dates:
-            day_cls = get_day_class(d)
-            html += f'<th class="{day_cls}">{d}</th>'
-        html += '</tr></thead><tbody>'
+        html += f'<thead><tr><th class="room-header">施設 / 部屋名</th><th class="{day_cls}">{target_date_header}</th></tr></thead><tbody>'
         
-        for key, data in room_data_map.items():
+        for key in sorted_keys:
+            data = room_data_map[key]
             html += '<tr>'
             html += f'<td class="room-cell"><span class="facility-tag">{data["facility"]}</span><br><span class="room-label">{data["room"]} <span style="font-size:11px; color:#a0aec0; font-weight:normal;">(定員: {data["capacity"]}名)</span></span></td>'
-            for d in sorted_dates:
-                slots = data['dates'].get(d)
-                if slots:
-                    am, pm, night = slots
-                    html += '<td><div class="slot-box">'
-                    html += f'<div class="slot-item"><span class="slot-time">午前</span>{get_slot_html(am)}</div>'
-                    html += f'<div class="slot-item"><span class="slot-time">午後</span>{get_slot_html(pm)}</div>'
-                    html += f'<div class="slot-item"><span class="slot-time">夜間</span>{get_slot_html(night)}</div>'
-                    html += '</div></td>'
-                else:
-                    html += '<td><div class="slot-icon na" style="margin:auto;">－</div></td>'
+            
+            # スマホ用に最適化したスロット配置
+            html += '<td><div class="slot-box">'
+            html += f'<div class="slot-item"><span class="slot-time">午前</span>{get_slot_html(data["am"])}</div>'
+            html += f'<div class="slot-item"><span class="slot-time">午後</span>{get_slot_html(data["pm"])}</div>'
+            html += f'<div class="slot-item"><span class="slot-time">夜間</span>{get_slot_html(data["night"])}</div>'
+            html += '</div></td>'
+            
             html += '</tr>'
             
         html += '</tbody></table>'
@@ -472,8 +473,8 @@ def fetch_availability_html(scds, start_date, end_date, min_cap, only_meeting):
         html += '''
         <div class="legend">
             <div class="legend-item"><div class="slot-icon ok" style="margin:0;">○</div> 空きあり</div>
-            <div class="legend-item"><div class="slot-icon ng" style="margin:0;">×</div> 予約済み・空きなし</div>
-            <div class="legend-item"><div class="slot-icon na" style="margin:0;">－</div> 受付期間外など</div>
+            <div class="legend-item"><div class="slot-icon ng" style="margin:0;">×</div> 予約済み・不可</div>
+            <div class="legend-item"><div class="slot-icon na" style="margin:0;">－</div> 期間外など</div>
         </div>
         '''
         
@@ -486,18 +487,15 @@ def fetch_availability_html(scds, start_date, end_date, min_cap, only_meeting):
 if search_clicked:
     if not selected_codes:
         st.warning("施設を1つ以上選択してください。")
-    elif start_date > end_date:
-        st.warning("終了日は開始日以降に設定してください。")
     else:
-        with st.spinner("データを取得・集計しています..."):
-            html_table, error = fetch_availability_html(tuple(selected_codes), start_date, end_date, min_capacity, show_only_meeting)
+        with st.spinner("データを高速取得しています..."):
+            html_table, error = fetch_availability_html_single_day(tuple(selected_codes), target_date, min_capacity, show_only_meeting)
             
             if error:
                 st.error(error)
             elif html_table:
                 now_str = datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S")
                 
-                # インデントをなくしてMarkdownのコードブロック扱いになるのを防ぐ
                 result_html = f'''<div class="result-panel">
 <div class="result-header">
 <div class="result-title">検索結果</div>
@@ -512,5 +510,3 @@ if search_clicked:
                 result_html += '</div></div>'
                 
                 st.markdown(result_html, unsafe_allow_html=True)
-            else:
-                st.warning("指定された条件のデータが見つかりませんでした。")
