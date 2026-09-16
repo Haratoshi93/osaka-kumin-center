@@ -432,13 +432,19 @@ def fetch_availability_html_single_day(scds, t_date, min_cap, only_meeting):
                                             'room': room_name,
                                             'capacity': capacity,
                                             'code': scd,
-                                            'am': "-", 'pm': "-", 'night': "-"
+                                            'am': ('-', ''), 'pm': ('-', ''), 'night': ('-', '')
                                         }
                                     
                                     time_list = date_info.get('availTimeList', [])
-                                    if len(time_list) >= 1: room_data_map[dict_key]['am'] = time_list[0].get('statusDisp', '-')
-                                    if len(time_list) >= 2: room_data_map[dict_key]['pm'] = time_list[1].get('statusDisp', '-')
-                                    if len(time_list) >= 3: room_data_map[dict_key]['night'] = time_list[2].get('statusDisp', '-')
+                                    if len(time_list) >= 1:
+                                        ti = time_list[0]
+                                        room_data_map[dict_key]['am'] = (ti.get('statusDisp', '-'), f"{ti.get('availStartTimeDisp', '')}-{ti.get('availEndTimeDisp', '')}")
+                                    if len(time_list) >= 2:
+                                        ti = time_list[1]
+                                        room_data_map[dict_key]['pm'] = (ti.get('statusDisp', '-'), f"{ti.get('availStartTimeDisp', '')}-{ti.get('availEndTimeDisp', '')}")
+                                    if len(time_list) >= 3:
+                                        ti = time_list[2]
+                                        room_data_map[dict_key]['night'] = (ti.get('statusDisp', '-'), f"{ti.get('availStartTimeDisp', '')}-{ti.get('availEndTimeDisp', '')}")
                                     
                 except Exception as exc:
                     st.error(f"{FACILITIES[scd]} のデータ取得でエラーが発生しました: {exc}")
@@ -454,6 +460,11 @@ def fetch_availability_html_single_day(scds, t_date, min_cap, only_meeting):
         html = '<table class="vc-table">'
         html += f'<thead><tr><th class="room-header">施設 / 部屋名</th><th class="{day_cls}">{target_date_header}</th></tr></thead><tbody>'
         
+        def render_slot(name, slot_tuple):
+            status, time_str = slot_tuple
+            time_html = f'<br><span style="font-size:8px; opacity:0.7; font-weight:normal;">{time_str}</span>' if time_str and time_str != "-" else ""
+            return f'<div class="slot-item"><span class="slot-time" style="line-height:1.2;">{name}{time_html}</span>{get_slot_html(status)}</div>'
+        
         for key in sorted_keys:
             data = room_data_map[key]
             html += '<tr>'
@@ -461,9 +472,9 @@ def fetch_availability_html_single_day(scds, t_date, min_cap, only_meeting):
             
             # スマホ用に最適化したスロット配置
             html += '<td><div class="slot-box">'
-            html += f'<div class="slot-item"><span class="slot-time">午前</span>{get_slot_html(data["am"])}</div>'
-            html += f'<div class="slot-item"><span class="slot-time">午後</span>{get_slot_html(data["pm"])}</div>'
-            html += f'<div class="slot-item"><span class="slot-time">夜間</span>{get_slot_html(data["night"])}</div>'
+            html += render_slot("午前", data["am"])
+            html += render_slot("午後", data["pm"])
+            html += render_slot("夜間", data["night"])
             html += '</div></td>'
             
             html += '</tr>'
