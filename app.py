@@ -58,7 +58,6 @@ custom_css = """
     /* 全体フォント */
     html, body, [class*="css"] {
         font-family: 'Helvetica Neue', 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif;
-        background-color: #f5f7fa;
     }
     
     /* ページ最大幅を制限して中央寄せ */
@@ -75,30 +74,12 @@ custom_css = """
     .page-header h1 {
         font-size: 30px;
         font-weight: 700;
-        color: #1a202c;
         letter-spacing: -0.5px;
         margin-bottom: 8px;
     }
     .page-header p {
         font-size: 14px;
         color: #718096;
-    }
-    
-    /* 検索パネル */
-    .search-panel {
-        background: white;
-        border-radius: 16px;
-        padding: 28px 32px;
-        margin-bottom: 28px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.04);
-    }
-    .search-panel-title {
-        font-size: 13px;
-        font-weight: 700;
-        color: #a0aec0;
-        letter-spacing: 1px;
-        text-transform: uppercase;
-        margin-bottom: 18px;
     }
     
     /* 検索ボタンのカスタム */
@@ -123,7 +104,6 @@ custom_css = """
     
     /* テーブルラッパー */
     .result-panel {
-        background: white;
         border-radius: 16px;
         padding: 24px;
         box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.04);
@@ -139,7 +119,6 @@ custom_css = """
     .result-title {
         font-size: 16px;
         font-weight: 700;
-        color: #2d3748;
     }
     .result-timestamp {
         font-size: 12px;
@@ -153,10 +132,8 @@ custom_css = """
         white-space: nowrap;
     }
     table.vc-table th {
-        background: #f7fafc;
         font-size: 12px;
         font-weight: 700;
-        color: #4a5568;
         padding: 14px 16px;
         border-bottom: 2px solid #edf2f7;
         text-align: center;
@@ -165,16 +142,13 @@ custom_css = """
         text-align: left;
         min-width: 200px;
         border-right: 2px solid #edf2f7;
-        background: #f0f4f8;
     }
     /* 日付ヘッダー：土曜・日曜の色分け */
     table.vc-table th.sat {
         color: #3182ce;
-        background: #ebf8ff;
     }
     table.vc-table th.sun, table.vc-table th.hol {
         color: #e53e3e;
-        background: #fff5f5;
     }
     table.vc-table td {
         padding: 12px 10px;
@@ -187,7 +161,6 @@ custom_css = """
         text-align: left;
         border-right: 2px solid #edf2f7;
         padding-left: 16px;
-        background: #fcfdff;
     }
     table.vc-table tr:last-child td {
         border-bottom: none;
@@ -326,7 +299,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- 検索パネル ---
-st.markdown('<div class="search-panel"><div class="search-panel-title">検索条件</div>', unsafe_allow_html=True)
+st.markdown("### 検索条件")
 
 col_fac, col_start, col_end = st.columns([4, 2, 2])
 
@@ -340,28 +313,25 @@ with col_fac:
 
 today = datetime.date.today()
 default_end = today + datetime.timedelta(days=7)
-max_date = today + datetime.timedelta(days=180) # 予約システムの上限目安（約半年）
 
 with col_start:
-    st.markdown('<div style="font-size:12px; color:#e74c3c; font-weight:bold; margin-bottom:-25px; position:relative; z-index:10;">📅 翌月以降もカレンダーの「＞」で選択可能！</div>', unsafe_allow_html=True)
-    start_date = st.date_input("開始日", value=today, min_value=today, max_value=max_date)
+    start_date = st.date_input("開始日", value=today)
 
 with col_end:
-    end_date = st.date_input("終了日", value=default_end, min_value=today, max_value=max_date)
+    end_date = st.date_input("終了日", value=default_end)
 
 col_cap, col_type, col_btn = st.columns([2, 3, 3])
 
 with col_cap:
-    min_capacity = st.number_input("最低利用人数", min_value=0, value=0, step=10, help="この人数以上が定員の部屋のみ表示します（0の場合は全て表示）")
+    min_capacity = st.number_input("最低利用人数", min_value=0, value=0, step=1, help="この人数以上が定員の部屋のみ表示します（0の場合は全て表示）")
 
 with col_type:
+    st.write("") # 縦位置合わせ
     show_only_meeting = st.checkbox("集会室・会議室のみ表示", value=True, help="チェックを入れると「集会」または「会議」という名前が含まれる部屋のみに絞り込みます（ホール等は除外されます）")
 
 with col_btn:
     st.write("") # 縦位置合わせ
     search_clicked = st.button("空き状況を検索", type="primary")
-
-st.markdown('</div>', unsafe_allow_html=True)
 
 NAME_TO_CODE = {v: k for k, v in FACILITIES.items()}
 selected_codes = [NAME_TO_CODE[name] for name in selected_names]
