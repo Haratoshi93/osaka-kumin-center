@@ -1,7 +1,6 @@
 import streamlit as st
 import requests
 from bs4 import BeautifulSoup
-import pandas as pd
 import datetime
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -43,35 +42,164 @@ FACILITIES = {
     '35': '大阪市立港区民センター'
 }
 
-st.set_page_config(page_title="大阪市区民センター 空き状況", page_icon="🏢", layout="wide")
+# --- ページ設定 ---
+st.set_page_config(page_title="大阪市区民センター 空き状況確認", layout="wide")
 
-# Streamlit特有の英語メニューやフッターを非表示にする
-hide_st_style = """
-            <style>
-            #MainMenu {visibility: hidden;}
-            header {visibility: hidden;}
-            footer {visibility: hidden;}
-            </style>
-            """
-st.markdown(hide_st_style, unsafe_allow_html=True)
+# --- カスタムCSS（デザインの大幅改善） ---
+custom_css = """
+<style>
+    /* Streamlitデフォルトの不要なUIを隠す */
+    #MainMenu {visibility: hidden;}
+    header {visibility: hidden;}
+    footer {visibility: hidden;}
+    
+    /* 全体のフォントと背景色 */
+    html, body, [class*="css"] {
+        font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif;
+    }
+    
+    /* メインタイトルの装飾 */
+    .main-title {
+        font-size: 28px;
+        font-weight: 700;
+        color: #2c3e50;
+        margin-bottom: 10px;
+        padding-bottom: 15px;
+        border-bottom: 2px solid #3498db;
+    }
+    
+    .sub-description {
+        font-size: 14px;
+        color: #7f8c8d;
+        margin-bottom: 30px;
+    }
+    
+    /* カスタムテーブルのデザイン */
+    .table-wrapper {
+        overflow-x: auto;
+        margin-top: 20px;
+        border-radius: 8px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        background: #ffffff;
+    }
+    
+    table.custom-table {
+        width: 100%;
+        border-collapse: collapse;
+        text-align: center;
+        background-color: white;
+    }
+    
+    table.custom-table th {
+        background-color: #f8f9fa;
+        color: #34495e;
+        font-size: 13px;
+        font-weight: 600;
+        padding: 15px 10px;
+        border-bottom: 2px solid #e9ecef;
+        border-right: 1px solid #e9ecef;
+        white-space: nowrap;
+    }
+    
+    table.custom-table td {
+        padding: 12px 10px;
+        border-bottom: 1px solid #e9ecef;
+        border-right: 1px solid #e9ecef;
+        vertical-align: top;
+    }
+    
+    table.custom-table tr:last-child td {
+        border-bottom: none;
+    }
+    table.custom-table th:last-child, table.custom-table td:last-child {
+        border-right: none;
+    }
+    
+    /* 施設・部屋名のセル */
+    .room-name-cell {
+        text-align: left !important;
+        font-weight: 600;
+        color: #2c3e50;
+        min-width: 180px;
+        background-color: #fafbfc;
+    }
+    
+    .facility-label {
+        font-size: 11px;
+        color: #7f8c8d;
+        display: block;
+        margin-bottom: 4px;
+    }
+    
+    /* タイムスロットのバッジデザイン */
+    .slot-container {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        align-items: center;
+    }
+    
+    .badge {
+        display: inline-block;
+        padding: 4px 8px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        width: 60px;
+        text-align: center;
+        letter-spacing: 0.5px;
+    }
+    
+    .badge.available {
+        background-color: #e8f5e9;
+        color: #2e7d32;
+        border: 1px solid #a5d6a7;
+    }
+    
+    .badge.unavailable {
+        background-color: #ffebee;
+        color: #c62828;
+        border: 1px solid #ffcdd2;
+    }
+    
+    .badge.disabled {
+        background-color: #f5f5f5;
+        color: #9e9e9e;
+        border: 1px solid #e0e0e0;
+    }
+    
+    /* 外部リンクボタン */
+    .reserve-link {
+        display: inline-block;
+        margin-top: 30px;
+        padding: 12px 24px;
+        background-color: #3498db;
+        color: white !important;
+        text-decoration: none;
+        border-radius: 6px;
+        font-weight: 600;
+        transition: background-color 0.2s;
+    }
+    .reserve-link:hover {
+        background-color: #2980b9;
+    }
+</style>
+"""
+st.markdown(custom_css, unsafe_allow_html=True)
 
-st.title("🏢 大阪市区民センター 空き状況確認")
+# --- ヘッダー ---
+st.markdown('<div class="main-title">大阪市区民センター 空き状況確認</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-description">指定した期間と施設の会議室の空き状況をリアルタイムで一括検索します。左のメニューから条件を指定してください。</div>', unsafe_allow_html=True)
 
-st.markdown("""
-大阪市の区役所附設会館（区民センターなど）の会議室の空き状況をリアルタイムで確認できます。左のサイドバーから検索条件を設定してください。
-""")
+# --- サイドバー設定 ---
+st.sidebar.markdown("### 検索条件")
 
-# サイドバー設定
-st.sidebar.header("🔍 検索条件")
-
-# 複数施設選択
 selected_names = st.sidebar.multiselect(
     "施設を選択（複数選択可）", 
     list(FACILITIES.values()),
-    default=[FACILITIES['18']] # デフォルトで東成区民センターを選択
+    default=[FACILITIES['18']]
 )
 
-# 日付範囲選択
 today = datetime.date.today()
 default_end = today + datetime.timedelta(days=7)
 date_range = st.sidebar.date_input(
@@ -79,20 +207,26 @@ date_range = st.sidebar.date_input(
     value=(today, default_end)
 )
 
-# コードを逆引きする辞書
 NAME_TO_CODE = {v: k for k, v in FACILITIES.items()}
 selected_codes = [NAME_TO_CODE[name] for name in selected_names]
 
+def get_badge_html(time_name, status):
+    if status == '〇':
+        css_class = "available"
+    elif status == '×':
+        css_class = "unavailable"
+    else:
+        css_class = "disabled"
+        status = "-"
+    return f'<span class="badge {css_class}">{time_name} {status}</span>'
+
 @st.cache_data(ttl=600)
-def fetch_availability(scds, start_date, end_date):
-    """
-    指定された複数の施設コードと日付範囲に基づいて空き状況を一括取得する
-    """
+def fetch_availability_html(scds, start_date, end_date):
     try:
         s = requests.Session()
         s.headers.update({'User-Agent': 'Mozilla/5.0'})
         
-        # まずCSRFトークンを取得（どの施設コードでもOKなので最初のものを使用）
+        # CSRFトークン取得
         url_get = f"https://www.shisetsu-osaka.jp/shisetsu-nw/akijokyo.html?scd={scds[0]}"
         resp_get = s.get(url_get, verify=False)
         resp_get.raise_for_status()
@@ -103,7 +237,6 @@ def fetch_availability(scds, start_date, end_date):
             return None, "システムからセキュリティトークンが取得できませんでした。"
         csrf = form.find('input', {'name': '_csrf'}).get('value')
         
-        # 取得すべき週（月曜日）のリストを作成
         current = start_date
         monday = current - datetime.timedelta(days=current.weekday())
         target_mondays = []
@@ -111,23 +244,14 @@ def fetch_availability(scds, start_date, end_date):
             target_mondays.append(monday)
             monday += datetime.timedelta(days=7)
             
-        all_data = [] # 最終的な行データのリスト
-        all_date_headers = set() # 取得した日付のヘッダー一覧
-        
+        all_date_headers = set()
+        room_data_map = {} 
         url_post = "https://www.shisetsu-osaka.jp/shisetsu-nw/restapi/akijokyo.html"
         
-        # 施設ごとにデータ取得
         for scd in scds:
             facility_name = FACILITIES[scd]
-            # 施設内の各部屋のデータ（日付を跨いで統合するため部屋ごとに辞書で管理）
-            room_data_map = {} 
-            
             for monday_date in target_mondays:
-                post_data = {
-                    '_csrf': csrf,
-                    'scd': scd,
-                    'sdate': monday_date.strftime("%Y-%m-%d")
-                }
+                post_data = {'_csrf': csrf, 'scd': scd, 'sdate': monday_date.strftime("%Y-%m-%d")}
                 resp_post = s.post(url_post, data=post_data, verify=False)
                 resp_post.raise_for_status()
                 result = resp_post.json()
@@ -140,16 +264,20 @@ def fetch_availability(scds, start_date, end_date):
                 
                 for room in result['data']['akijokyo']:
                     room_name = room.get('roomName', room.get('roomDispName', '不明'))
+                    dict_key = f"{scd}_{room_name}"
                     
-                    if room_name not in room_data_map:
-                        room_data_map[room_name] = {'施設・部屋名': f"【{facility_name}】{room_name}"}
+                    if dict_key not in room_data_map:
+                        room_data_map[dict_key] = {
+                            'facility': facility_name,
+                            'room': room_name,
+                            'dates': {}
+                        }
                     
                     for i, date_info in enumerate(room.get('dateList', [])):
                         if i < len(headers):
-                            raw_date_str = date_info.get('riyoDate') # "YYYY-MM-DD"
+                            raw_date_str = date_info.get('riyoDate')
                             if not raw_date_str: continue
                             
-                            # 対象期間内の日付か判定
                             cur_dt = datetime.datetime.strptime(raw_date_str, "%Y-%m-%d").date()
                             if start_date <= cur_dt <= end_date:
                                 date_header = headers[i]
@@ -161,62 +289,58 @@ def fetch_availability(scds, start_date, end_date):
                                 if len(time_list) >= 2: pm = time_list[1].get('statusDisp', '-')
                                 if len(time_list) >= 3: night = time_list[2].get('statusDisp', '-')
                                 
-                                room_data_map[room_name][date_header] = f"【午前】{am} 【午後】{pm} 【夜間】{night}"
+                                room_data_map[dict_key]['dates'][date_header] = {'am': am, 'pm': pm, 'night': night}
                                 
-            # 施設の全データをリストに追加
-            all_data.extend(list(room_data_map.values()))
-            
-        if not all_data:
+        if not room_data_map:
              return None, "条件に一致する空き状況データがありませんでした。"
              
-        df = pd.DataFrame(all_data)
-        
-        # 列の並び替え（「施設・部屋名」を一番左にし、残りは日付順）
-        # setからリスト化してソート（YYYY/MM/DDなので文字列ソートでOKだが、一応ちゃんとソートする）
+        # HTML組み立て
         sorted_dates = sorted(list(all_date_headers), key=lambda x: datetime.datetime.strptime(x.split('(')[0], "%Y/%m/%d"))
-        columns_order = ['施設・部屋名'] + sorted_dates
         
-        # 存在しない日付列は作らないようにフィルタリング
-        columns_order = [col for col in columns_order if col in df.columns]
-        df = df[columns_order]
+        html = '<div class="table-wrapper"><table class="custom-table">'
+        html += '<thead><tr><th>施設・部屋名</th>'
+        for d in sorted_dates:
+            html += f'<th>{d}</th>'
+        html += '</tr></thead><tbody>'
         
-        # NaNをハイフンに置換
-        df = df.fillna("-")
-        
-        return df, None
+        for key, data in room_data_map.items():
+            html += '<tr>'
+            html += f'<td class="room-name-cell"><span class="facility-label">{data["facility"]}</span>{data["room"]}</td>'
+            for d in sorted_dates:
+                slots = data['dates'].get(d, {'am': '-', 'pm': '-', 'night': '-'})
+                html += '<td><div class="slot-container">'
+                html += get_badge_html('午前', slots['am'])
+                html += get_badge_html('午後', slots['pm'])
+                html += get_badge_html('夜間', slots['night'])
+                html += '</div></td>'
+            html += '</tr>'
+            
+        html += '</tbody></table></div>'
+        return html, None
         
     except Exception as e:
         return None, f"エラーが発生しました: {e}"
 
-if st.sidebar.button("空き状況を確認", type="primary"):
-    # 日付のバリデーション
+# --- メイン処理 ---
+if st.sidebar.button("空き状況を検索", type="primary", use_container_width=True):
     if not selected_codes:
         st.warning("施設を1つ以上選択してください。")
     elif isinstance(date_range, tuple) and len(date_range) != 2:
-        st.warning("対象期間の「終了日」も選択してください。（1日だけの場合は同じ日を2回クリックしてください）")
+        st.warning("対象期間の「終了日」も選択してください。（1日だけの場合は同じ日を2回クリック）")
     else:
         start_date = date_range[0] if isinstance(date_range, tuple) else date_range
         end_date = date_range[1] if isinstance(date_range, tuple) and len(date_range) == 2 else start_date
         
-        with st.spinner("データを取得・集計中..."):
-            df, error = fetch_availability(selected_codes, start_date, end_date)
+        with st.spinner("最新の空き状況を取得しています..."):
+            html_table, error = fetch_availability_html(selected_codes, start_date, end_date)
             
             if error:
                 st.error(error)
-            elif df is not None and not df.empty:
-                st.success(f"情報を取得しました！（{datetime.datetime.now().strftime('%Y/%m/%d %H:%M:%S')} 時点）")
+            elif html_table:
+                st.markdown(f'<div style="text-align:right; font-size:12px; color:#95a5a6; margin-bottom:5px;">最終更新: {datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S")}</div>', unsafe_allow_html=True)
+                st.markdown(html_table, unsafe_allow_html=True)
                 
-                # スクロール可能な広い表を表示
-                st.dataframe(
-                    df,
-                    use_container_width=True,
-                    hide_index=True
-                )
-                
-                st.info("※ 「〇」は空きあり、「×」は予約不可・空きなし、「-」は受付期間外などを表します。")
-                
-                # リンク生成（選択した最初の施設をリンクにする）
-                st.markdown(f"[大阪市施設予約システムへ移動して予約する](https://www.shisetsu-osaka.jp/shisetsu-nw/akijokyo.html?scd={selected_codes[0]})")
-                
+                # 予約サイトへのリンク
+                st.markdown(f'<a href="https://www.shisetsu-osaka.jp/shisetsu-nw/akijokyo.html?scd={selected_codes[0]}" target="_blank" class="reserve-link">大阪市施設予約システムを開く</a>', unsafe_allow_html=True)
             else:
-                st.warning("データがありませんでした。")
+                st.warning("指定された条件のデータが見つかりませんでした。")
