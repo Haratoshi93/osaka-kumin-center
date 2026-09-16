@@ -308,6 +308,11 @@ custom_css = """
         align-items: center;
         gap: 5px;
     }
+    
+    /* チェックボックス用のパディング調整 */
+    .stCheckbox {
+        padding-top: 35px;
+    }
 </style>
 """
 st.markdown(custom_css, unsafe_allow_html=True)
@@ -323,7 +328,7 @@ st.markdown("""
 # --- 検索パネル ---
 st.markdown('<div class="search-panel"><div class="search-panel-title">検索条件</div>', unsafe_allow_html=True)
 
-col_fac, col_start, col_end, col_btn = st.columns([4, 1.5, 1.5, 1.2])
+col_fac, col_start, col_end = st.columns([4, 2, 2])
 
 with col_fac:
     selected_names = st.multiselect(
@@ -335,12 +340,22 @@ with col_fac:
 
 today = datetime.date.today()
 default_end = today + datetime.timedelta(days=7)
+max_date = today + datetime.timedelta(days=180) # 予約システムの上限目安（約半年）
 
 with col_start:
-    start_date = st.date_input("開始日", value=today)
+    st.markdown('<div style="font-size:12px; color:#e74c3c; font-weight:bold; margin-bottom:-25px; position:relative; z-index:10;">📅 翌月以降もカレンダーの「＞」で選択可能！</div>', unsafe_allow_html=True)
+    start_date = st.date_input("開始日", value=today, min_value=today, max_value=max_date)
 
 with col_end:
-    end_date = st.date_input("終了日", value=default_end)
+    end_date = st.date_input("終了日", value=default_end, min_value=today, max_value=max_date)
+
+col_cap, col_type, col_btn = st.columns([2, 3, 3])
+
+with col_cap:
+    min_capacity = st.number_input("最低利用人数", min_value=0, value=0, step=10, help="この人数以上が定員の部屋のみ表示します（0の場合は全て表示）")
+
+with col_type:
+    show_only_meeting = st.checkbox("集会室・会議室のみ表示", value=True, help="チェックを入れると「集会」または「会議」という名前が含まれる部屋のみに絞り込みます（ホール等は除外されます）")
 
 with col_btn:
     st.write("") # 縦位置合わせ
@@ -371,7 +386,7 @@ def get_slot_html(status):
         return '<div class="slot-icon na">－</div>'
 
 @st.cache_data(ttl=600)
-def fetch_availability_html(scds, start_date, end_date):
+def fetch_availability_html(scds, start_date, end_date, min_cap, only_meeting):
     try:
         s = requests.Session()
         s.headers.update({'User-Agent': 'Mozilla/5.0'})
@@ -412,12 +427,24 @@ def fetch_availability_html(scds, start_date, end_date):
                 
                 for room in result['data']['akijokyo']:
                     room_name = room.get('roomName', room.get('roomDispName', '不明'))
+                    
+                    # --- フィルター処理 ---
+                    if only_meeting:
+                        if "集会" not in room_name and "会議" not in room_name:
+                            continue
+                            
+                    capacity = int(room.get('tenin', 0) or 0)
+                    if min_cap > 0 and capacity < min_cap:
+                        continue
+                    # ----------------------
+                    
                     dict_key = f"{scd}_{room_name}"
                     
                     if dict_key not in room_data_map:
                         room_data_map[dict_key] = {
                             'facility': facility_name,
                             'room': room_name,
+                            'capacity': capacity,
                             'code': scd,
                             'dates': {}
                         }
@@ -441,7 +468,7 @@ def fetch_availability_html(scds, start_date, end_date):
                                 room_data_map[dict_key]['dates'][date_header] = (am, pm, night)
                                 
         if not room_data_map:
-             return None, "条件に一致するデータが見つかりませんでした。期間や施設を変えてお試しください。"
+             return None, "条件に一致するデータが見つかりませんでした。人数条件を緩めるか、期間や施設を変えてお試しください。"
              
         sorted_dates = sorted(list(all_date_headers), key=lambda x: datetime.datetime.strptime(x.split('(')[0], "%Y/%m/%d"))
         
@@ -455,7 +482,7 @@ def fetch_availability_html(scds, start_date, end_date):
         
         for key, data in room_data_map.items():
             html += '<tr>'
-            html += f'<td class="room-cell"><span class="facility-tag">{data["facility"]}</span><br><span class="room-label">{data["room"]}</span></td>'
+            html += f'<td class="room-cell"><span class="facility-tag">{data["facility"]}</span><br><span class="room-label">{data["room"]} <span style="font-size:11px; color:#a0aec0; font-weight:normal;">(定員: {data["capacity"]}名)</span></span></td>'
             for d in sorted_dates:
                 slots = data['dates'].get(d)
                 if slots:
@@ -493,7 +520,7 @@ if search_clicked:
         st.warning("終了日は開始日以降に設定してください。")
     else:
         with st.spinner("データを取得・集計しています..."):
-            html_table, error = fetch_availability_html(tuple(selected_codes), start_date, end_date)
+            html_table, error = fetch_availability_html(tuple(selected_codes), start_date, end_date, min_capacity, show_only_meeting)
             
             if error:
                 st.error(error)
