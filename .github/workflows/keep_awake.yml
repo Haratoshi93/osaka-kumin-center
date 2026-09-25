@@ -12,8 +12,7 @@ jobs:
     
     steps:
       - name: Ping Streamlit App
-        # ※もしURLが異なる場合は、以下のURLを実際のStreamlitのURLに変更してください
         run: |
           echo "Pinging Streamlit App to keep it awake..."
-          curl -s https://osaka-kumin-center.streamlit.app > /dev/null
+          curl -s https://haratoshi93-osaka-kumin-center-app-otjq44.streamlit.app/ > /dev/null
           echo "Done!"
