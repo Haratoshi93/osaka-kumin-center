@@ -1,0 +1,19 @@
+name: Keep Streamlit Awake
+
+on:
+  schedule:
+    # 毎日 午前9時 (UTCの0時) と 午後9時 (UTCの12時) に実行して確実にスリープを防ぐ
+    - cron: '0 0,12 * * *'
+  workflow_dispatch: # 手動実行用
+
+jobs:
+  ping-app:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Ping Streamlit App
+        # ※もしURLが異なる場合は、以下のURLを実際のStreamlitのURLに変更してください
+        run: |
+          echo "Pinging Streamlit App to keep it awake..."
+          curl -s https://osaka-kumin-center.streamlit.app > /dev/null
+          echo "Done!"
