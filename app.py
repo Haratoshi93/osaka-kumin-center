@@ -50,6 +50,18 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
+# Streamlitの不要なロゴ等を非表示にするためのCSS
+hide_streamlit_style = """
+            <style>
+            #MainMenu {visibility: hidden;}
+            footer {visibility: hidden;}
+            header {visibility: hidden;}
+            .viewerBadge_container__1QSob {visibility: hidden;}
+            a[href*="streamlit"] { display: none !important; }
+            </style>
+            """
+st.markdown(hide_streamlit_style, unsafe_allow_html=True)
+
 # --- カスタムCSS ---
 custom_css = """
 <style>
@@ -308,9 +320,22 @@ selected_names = st.multiselect(
 col_date, col_cap = st.columns(2)
 
 today = datetime.date.today()
+# 向こう120日分の日付リストを生成
+date_options = [today + datetime.timedelta(days=i) for i in range(120)]
+def format_date_jp(d):
+    wd = ["月", "火", "水", "木", "金", "土", "日"][d.weekday()]
+    return f"{d.strftime('%Y/%m/%d')}({wd})"
+date_labels = [format_date_jp(d) for d in date_options]
 
 with col_date:
-    target_date = st.date_input("📅 検索日", value=today)
+    selected_labels = st.multiselect(
+        "📅 検索日（複数選択可）",
+        options=date_labels,
+        default=[date_labels[0]],
+        placeholder="日付を選択してください...",
+        help="入力欄に「土」や「11/」と入力すると素早く絞り込めます"
+    )
+    target_dates = [date_options[date_labels.index(lbl)] for lbl in selected_labels]
 
 with col_cap:
     min_capacity = st.number_input(
@@ -356,7 +381,7 @@ def fetch_single_facility(s, csrf, scd, monday_str, url_post):
     return scd, resp.json()
 
 @st.cache_data(ttl=300)
-def fetch_availability_html_single_day(scds, t_date, min_cap, only_meeting):
+def fetch_availability_html_multi_days(scds, t_dates, min_cap, only_meeting):
     try:
         s = requests.Session()
         s.headers.update({'User-Agent': 'Mozilla/5.0'})
@@ -372,24 +397,27 @@ def fetch_availability_html_single_day(scds, t_date, min_cap, only_meeting):
             return None, "システムからセキュリティトークンが取得できませんでした。"
         csrf = form.find('input', {'name': '_csrf'}).get('value')
         
-        # 該当週の月曜日を計算
-        monday = t_date - datetime.timedelta(days=t_date.weekday())
-        monday_str = monday.strftime("%Y-%m-%d")
+        # 必要な月曜日のリストを算出（APIは月曜日始まりの1週間単位で結果を返すため）
+        monday_strs = set()
+        for t_date in t_dates:
+            monday = t_date - datetime.timedelta(days=t_date.weekday())
+            monday_strs.add(monday.strftime("%Y-%m-%d"))
+        monday_strs = list(monday_strs)
         
         url_post = "https://www.shisetsu-osaka.jp/shisetsu-nw/restapi/akijokyo.html"
         
         room_data_map = {}
-        target_date_header = ""
+        target_date_headers = {}
         
-        # --- 並列処理で全施設へ同時にPOSTリクエストを送信 (高速化) ---
-        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-            future_to_scd = {
-                executor.submit(fetch_single_facility, s, csrf, scd, monday_str, url_post): scd 
-                for scd in scds
+        # --- 並列処理で全施設・対象週へ同時にPOSTリクエストを送信 (高速化) ---
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+            future_to_req = {
+                executor.submit(fetch_single_facility, s, csrf, scd, monday_str, url_post): (scd, monday_str) 
+                for scd in scds for monday_str in monday_strs
             }
             
-            for future in concurrent.futures.as_completed(future_to_scd):
-                scd = future_to_scd[future]
+            for future in concurrent.futures.as_completed(future_to_req):
+                scd, monday_str = future_to_req[future]
                 try:
                     scd_result, result_json = future.result()
                     
@@ -423,43 +451,54 @@ def fetch_availability_html_single_day(scds, t_date, min_cap, only_meeting):
                                 
                                 cur_dt = datetime.datetime.strptime(raw_date_str, "%Y-%m-%d").date()
                                 
-                                # 指定された単一の日付のみを抽出
-                                if cur_dt == t_date:
-                                    target_date_header = headers[i]
-                                    
+                                # 指定された日付リストに含まれているか
+                                if cur_dt in t_dates:
+                                    if cur_dt not in target_date_headers:
+                                        target_date_headers[cur_dt] = headers[i]
+                                        
                                     if dict_key not in room_data_map:
                                         room_data_map[dict_key] = {
                                             'facility': facility_name,
                                             'room': room_name,
                                             'capacity': capacity,
                                             'code': scd,
+                                            'dates': {}
+                                        }
+                                        
+                                    if cur_dt not in room_data_map[dict_key]['dates']:
+                                        room_data_map[dict_key]['dates'][cur_dt] = {
                                             'am': ('-', ''), 'pm': ('-', ''), 'night': ('-', '')
                                         }
                                     
                                     time_list = date_info.get('availTimeList', [])
                                     if len(time_list) >= 1:
                                         ti = time_list[0]
-                                        room_data_map[dict_key]['am'] = (ti.get('statusDisp', '-'), f"{ti.get('availStartTimeDisp', '')}-{ti.get('availEndTimeDisp', '')}")
+                                        room_data_map[dict_key]['dates'][cur_dt]['am'] = (ti.get('statusDisp', '-'), f"{ti.get('availStartTimeDisp', '')}-{ti.get('availEndTimeDisp', '')}")
                                     if len(time_list) >= 2:
                                         ti = time_list[1]
-                                        room_data_map[dict_key]['pm'] = (ti.get('statusDisp', '-'), f"{ti.get('availStartTimeDisp', '')}-{ti.get('availEndTimeDisp', '')}")
+                                        room_data_map[dict_key]['dates'][cur_dt]['pm'] = (ti.get('statusDisp', '-'), f"{ti.get('availStartTimeDisp', '')}-{ti.get('availEndTimeDisp', '')}")
                                     if len(time_list) >= 3:
                                         ti = time_list[2]
-                                        room_data_map[dict_key]['night'] = (ti.get('statusDisp', '-'), f"{ti.get('availStartTimeDisp', '')}-{ti.get('availEndTimeDisp', '')}")
+                                        room_data_map[dict_key]['dates'][cur_dt]['night'] = (ti.get('statusDisp', '-'), f"{ti.get('availStartTimeDisp', '')}-{ti.get('availEndTimeDisp', '')}")
                                     
                 except Exception as exc:
                     st.error(f"{FACILITIES[scd]} のデータ取得でエラーが発生しました: {exc}")
                     
-        if not room_data_map or not target_date_header:
+        if not room_data_map or not target_date_headers:
              return None, "条件に一致するデータが見つかりませんでした。"
              
         # 表示順を施設コード＞部屋名でソート
         sorted_keys = sorted(room_data_map.keys())
+        sorted_t_dates = sorted(list(t_dates))
         
-        # HTML組み立て (2カラム: 施設/部屋名 | スロット)
-        day_cls = get_day_class(target_date_header)
+        # HTML組み立て (複数日カラム)
         html = '<table class="vc-table">'
-        html += f'<thead><tr><th class="room-header">施設 / 部屋名</th><th class="{day_cls}">{target_date_header}</th></tr></thead><tbody>'
+        html += '<thead><tr><th class="room-header">施設 / 部屋名</th>'
+        for dt in sorted_t_dates:
+            header_str = target_date_headers.get(dt, dt.strftime("%m/%d"))
+            day_cls = get_day_class(header_str)
+            html += f'<th class="{day_cls}">{header_str}</th>'
+        html += '</tr></thead><tbody>'
         
         def render_slot(name, slot_tuple):
             status, time_str = slot_tuple
@@ -471,12 +510,20 @@ def fetch_availability_html_single_day(scds, t_date, min_cap, only_meeting):
             html += '<tr>'
             html += f'<td class="room-cell"><span class="facility-tag">{data["facility"]}</span><br><span class="room-label">{data["room"]} <span style="font-size:11px; color:#a0aec0; font-weight:normal;">(定員: {data["capacity"]}名)</span></span></td>'
             
-            # スマホ用に最適化したスロット配置
-            html += '<td><div class="slot-box">'
-            html += render_slot("午前", data["am"])
-            html += render_slot("午後", data["pm"])
-            html += render_slot("夜間", data["night"])
-            html += '</div></td>'
+            for dt in sorted_t_dates:
+                dt_data = data['dates'].get(dt)
+                if dt_data:
+                    html += '<td><div class="slot-box">'
+                    html += render_slot("午前", dt_data["am"])
+                    html += render_slot("午後", dt_data["pm"])
+                    html += render_slot("夜間", dt_data["night"])
+                    html += '</div></td>'
+                else:
+                    html += '<td><div class="slot-box">'
+                    html += render_slot("午前", ('-', ''))
+                    html += render_slot("午後", ('-', ''))
+                    html += render_slot("夜間", ('-', ''))
+                    html += '</div></td>'
             
             html += '</tr>'
             
@@ -500,9 +547,13 @@ def fetch_availability_html_single_day(scds, t_date, min_cap, only_meeting):
 if search_clicked:
     if not selected_codes:
         st.warning("施設を1つ以上選択してください。")
+    elif not target_dates:
+        st.warning("検索日を選択してください。")
+    elif len(target_dates) > 31:
+        st.warning("検索期間が長すぎます。31日以内の範囲を選択してください。")
     else:
         with st.spinner("データを高速取得しています..."):
-            html_table, error = fetch_availability_html_single_day(tuple(selected_codes), target_date, min_capacity, show_only_meeting)
+            html_table, error = fetch_availability_html_multi_days(tuple(selected_codes), tuple(target_dates), min_capacity, show_only_meeting)
             
             if error:
                 st.error(error)
