@@ -4,6 +4,7 @@ from bs4 import BeautifulSoup
 import datetime
 import urllib3
 import concurrent.futures
+import jpholiday
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # 施設一覧
@@ -320,18 +321,33 @@ selected_names = st.multiselect(
 col_date, col_cap = st.columns(2)
 
 today = datetime.date.today()
-# 向こう120日分の日付リストを生成
-date_options = [today + datetime.timedelta(days=i) for i in range(120)]
-def format_date_jp(d):
-    wd = ["月", "火", "水", "木", "金", "土", "日"][d.weekday()]
-    return f"{d.strftime('%Y/%m/%d')}({wd})"
-date_labels = [format_date_jp(d) for d in date_options]
 
 with col_date:
+    show_weekend_only = st.toggle("🎌 金・土・日・祝のみ表示", value=True)
+    
+    # 向こう120日分の日付リストを生成し、必要に応じてフィルタリング
+    date_options = []
+    for i in range(120):
+        d = today + datetime.timedelta(days=i)
+        if show_weekend_only:
+            # 4:金, 5:土, 6:日
+            if d.weekday() >= 4 or jpholiday.is_holiday(d):
+                date_options.append(d)
+        else:
+            date_options.append(d)
+            
+    def format_date_jp(d):
+        if jpholiday.is_holiday(d):
+            return f"{d.strftime('%Y/%m/%d')}(祝)"
+        wd = ["月", "火", "水", "木", "金", "土", "日"][d.weekday()]
+        return f"{d.strftime('%Y/%m/%d')}({wd})"
+        
+    date_labels = [format_date_jp(d) for d in date_options]
+
     selected_labels = st.multiselect(
         "📅 検索日（複数選択可）",
         options=date_labels,
-        default=[date_labels[0]],
+        default=[date_labels[0]] if date_labels else [],
         placeholder="日付を選択してください...",
         help="入力欄に「土」や「11/」と入力すると素早く絞り込めます"
     )
@@ -358,7 +374,10 @@ selected_codes = [NAME_TO_CODE[name] for name in selected_names]
 # --- 曜日判定 ---
 def get_day_class(date_str):
     try:
-        d = datetime.datetime.strptime(date_str.split('(')[0], "%Y/%m/%d")
+        # '(祝)' などの文字列もパースできるように分割
+        date_part = date_str.split('(')[0]
+        d = datetime.datetime.strptime(date_part, "%Y/%m/%d").date()
+        if jpholiday.is_holiday(d): return "hol"
         wd = d.weekday()
         if wd == 5: return "sat"
         if wd == 6: return "sun"
